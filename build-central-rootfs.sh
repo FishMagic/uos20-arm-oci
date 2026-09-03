@@ -134,5 +134,5 @@ done
 
 tar --numeric-owner --owner=0 --group=0 --sort=name \
     --mtime='UTC 1970-01-01' -C "$ROOTFS" -cf "$OUT_DIR/rootfs.tar" .
-sha256sum "$OUT_DIR/rootfs.tar" > "$OUT_DIR/rootfs.tar.sha256"
+(cd "$OUT_DIR" && sha256sum rootfs.tar > rootfs.tar.sha256)
 printf 'Debian buster central rootfs ready: %s\n' "$OUT_DIR/rootfs.tar"
