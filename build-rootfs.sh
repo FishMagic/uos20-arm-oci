@@ -25,19 +25,21 @@ rm -f /var/cache/apt/archives/*.deb
 
 # Delete every repository inherited from the bootstrap image.  Only active
 # `deb` entries from the supplied apt_sources.txt are retained.  The supplied
-# PPA currently publishes `main`; keep its URL/suite from the source file but
-# avoid inventing 404 component indexes for contrib/non-free.
+# Wayland PPA currently redirects to an unavailable CDN index; it remains in
+# apt_sources.txt for reproducibility but is opt-in, so a stale PPA cannot
+# invalidate the base UOS20E repository indexes.
 rm -f /etc/apt/sources.list
 rm -rf /etc/apt/sources.list.d
 mkdir -p /etc/apt/sources.list.d
-awk '$1 == "deb" {
+awk -v include_ppa="${UOS_ENABLE_WAYLAND_PPA:-0}" '$1 == "deb" {
+    if (!include_ppa && $2 ~ /professional-ppa\.chinauos\.com/) next
     if ($2 ~ /professional-ppa\.chinauos\.com/) {
         print "deb [arch=arm64 trusted=yes] " $2 " " $3 " main"
     } else {
         print "deb [arch=arm64 trusted=yes] " $2 " " $3 " " $4 " " $5 " " $6
     }
 }' "$SOURCE_FILE" > /etc/apt/sources.list
-[ -s /etc/apt/sources.list ] || { echo "apt_sources.txt has no active deb entries" >&2; exit 2; }
+[ -s /etc/apt/sources.list ] || { echo "apt_sources.txt has no usable active deb entries" >&2; exit 2; }
 
 if [ -s "$AUTH_FILE" ]; then
     install -D -m 0600 "$AUTH_FILE" /etc/apt/auth.conf.d/90-uos.conf

@@ -39,6 +39,7 @@ jobs:
       # The supplied UOS endpoint can expose a private CA. Prefer setting the
       # UOS_INSECURE_TLS repository variable to 0 plus UOS_APT_CA_CERT.
       UOS_INSECURE_TLS: ${{ vars.UOS_INSECURE_TLS || '1' }}
+      UOS_ENABLE_WAYLAND_PPA: ${{ vars.UOS_ENABLE_WAYLAND_PPA || '0' }}
 
     steps:
       - name: Checkout
@@ -82,8 +83,8 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/src:ro" \
             --volume "$RUNNER_TEMP/uos-rootfs:/out" \
             --volume "$RUNNER_TEMP/uos-apt-auth:/run/secrets/uos-apt-auth:ro" \
-            --volume "$RUNNER_TEMP/uos-apt-ca:/run/secrets/uos-apt-ca:ro" \
             --env UOS_INSECURE_TLS \
+            --env UOS_ENABLE_WAYLAND_PPA \
             local/uos20e-rootfs-builder:ci
 
       - name: Build runnable image and OCI archive
