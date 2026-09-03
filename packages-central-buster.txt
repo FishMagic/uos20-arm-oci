@@ -65,6 +65,7 @@ libgl1-mesa-dev
 libglew-dev
 libglib2.0-dev
 libglu1-mesa-dev
+libosmesa6-dev
 libgraphite2-dev
 libgtk-3-dev
 libharfbuzz-dev
