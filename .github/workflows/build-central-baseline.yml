@@ -1,0 +1,123 @@
+name: Build Debian buster central arm64 baseline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'debian.sources'
+      - 'packages-central-buster.txt'
+      - 'build-central-rootfs.sh'
+      - 'build-bambustudio-uos20e.sh'
+      - 'build-oci.sh'
+      - 'Dockerfile.central'
+      - 'Dockerfile.central-rootfs-builder'
+      - '.github/workflows/build-central-baseline.yml'
+  workflow_dispatch:
+    inputs:
+      publish_image:
+        description: 'Push the central baseline image to GHCR'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: debian-buster-central-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Debian buster central arm64 rootfs and OCI
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify native ARM runner and disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          docker info
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/share/powershell /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Build central arm64 rootfs helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/arm64 --load \
+            --tag local/debian-buster-arm64-rootfs-builder:ci \
+            --file Dockerfile.central-rootfs-builder .
+
+      - name: Resolve central packages and create rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/debian-buster-rootfs"
+          docker run --rm --platform linux/arm64 \
+            --volume "$GITHUB_WORKSPACE:/src:ro" \
+            --volume "$RUNNER_TEMP/debian-buster-rootfs:/out" \
+            local/debian-buster-arm64-rootfs-builder:ci
+
+      - name: Build runnable central image and OCI archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          OCI_DOCKERFILE="$GITHUB_WORKSPACE/Dockerfile.central" \
+          OCI_OUTPUT_PREFIX=debian-buster-arm64 \
+            ./build-oci.sh \
+              "$RUNNER_TEMP/debian-buster-rootfs/rootfs.tar" \
+              "local/debian-buster-arm64:${GITHUB_SHA::12}" \
+              "$RUNNER_TEMP/debian-buster-rootfs"
+
+      - name: Publish central image to GHCR
+        if: ${{ github.event_name == 'push' || inputs.publish_image == true }}
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          IMAGE="ghcr.io/${OWNER}/uos20e-arm64:central-buster-${GITHUB_SHA::12}"
+          MOVING="ghcr.io/${OWNER}/uos20e-arm64:central-buster"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+          docker tag "local/debian-buster-arm64:${GITHUB_SHA::12}" "$IMAGE"
+          docker push "$IMAGE"
+          docker tag "$IMAGE" "$MOVING"
+          docker push "$MOVING"
+
+      - name: Compress rootfs for transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v zstd >/dev/null 2>&1; then
+            zstd -T0 -19 -f "$RUNNER_TEMP/debian-buster-rootfs/rootfs.tar" \
+              -o "$RUNNER_TEMP/debian-buster-rootfs/debian-buster-arm64-rootfs.tar.zst"
+          else
+            gzip -9 -c "$RUNNER_TEMP/debian-buster-rootfs/rootfs.tar" \
+              > "$RUNNER_TEMP/debian-buster-rootfs/debian-buster-arm64-rootfs.tar.gz"
+          fi
+
+      - name: Upload central rootfs, OCI image, and manifest
+        uses: actions/upload-artifact@v6
+        with:
+          name: debian-buster-central-arm64-oci-${{ github.sha }}
+          if-no-files-found: error
+          compression-level: 0
+          path: |
+            ${{ runner.temp }}/debian-buster-rootfs/rootfs.tar
+            ${{ runner.temp }}/debian-buster-rootfs/rootfs.tar.sha256
+            ${{ runner.temp }}/debian-buster-rootfs/debian-buster-arm64-rootfs.tar.*
+            ${{ runner.temp }}/debian-buster-rootfs/debian-buster-arm64-manifest.txt
+            ${{ runner.temp }}/debian-buster-rootfs/debian-buster-arm64.oci.tar
+            ${{ runner.temp }}/debian-buster-rootfs/debian-buster-arm64.oci.tar.zst
+            ${{ runner.temp }}/debian-buster-rootfs/debian-buster-arm64-image.tar
+            ${{ runner.temp }}/debian-buster-rootfs/debian-buster-arm64-image.tar.zst

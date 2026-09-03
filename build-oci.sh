@@ -7,6 +7,8 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 ROOTFS_TAR="${1:-${UOS_ROOTFS_TAR:-$ROOT/rootfs.tar}}"
 IMAGE="${2:-${UOS_IMAGE:-local/uos20e-arm64:latest}}"
 OUT_DIR="${3:-${UOS_IMAGE_OUT:-$(dirname "$ROOTFS_TAR")}}"
+OUTPUT_PREFIX="${OCI_OUTPUT_PREFIX:-uos20e-arm64}"
+DOCKERFILE="${OCI_DOCKERFILE:-$ROOT/Dockerfile}"
 
 [ "$(uname -m)" = aarch64 ] || { echo "native arm64 is required" >&2; exit 2; }
 [ -f "$ROOTFS_TAR" ] || { echo "rootfs tar not found: $ROOTFS_TAR" >&2; exit 2; }
@@ -14,14 +16,14 @@ mkdir -p "$OUT_DIR"
 CTX=$(mktemp -d)
 trap 'rm -rf "$CTX"' EXIT
 ln "$ROOTFS_TAR" "$CTX/rootfs.tar" 2>/dev/null || cp "$ROOTFS_TAR" "$CTX/rootfs.tar"
-cp "$ROOT/Dockerfile" "$CTX/Dockerfile"
+cp "$DOCKERFILE" "$CTX/Dockerfile"
 ROOTFS_SHA=$(sha256sum "$ROOTFS_TAR" | cut -d' ' -f1)
 
 # Export a real OCI archive for registry/import tooling.
 docker buildx build \
     --platform linux/arm64 \
     --build-arg UOS_ROOTFS_SHA256="$ROOTFS_SHA" \
-    --output "type=oci,dest=$OUT_DIR/uos20e-arm64.oci.tar" \
+    --output "type=oci,dest=$OUT_DIR/$OUTPUT_PREFIX.oci.tar" \
     "$CTX"
 
 # Also load a local image so the BambuStudio repository can run the exact same
@@ -33,11 +35,11 @@ docker import --platform linux/arm64 \
     "$ROOTFS_TAR" "$IMAGE"
 ARCH=$(docker image inspect "$IMAGE" --format '{{.Architecture}}')
 [ "$ARCH" = arm64 ] || { echo "wrong image architecture: $ARCH" >&2; exit 1; }
-docker save "$IMAGE" -o "$OUT_DIR/uos20e-arm64-image.tar"
+docker save "$IMAGE" -o "$OUT_DIR/${OUTPUT_PREFIX}-image.tar"
 if command -v zstd >/dev/null 2>&1; then
-    zstd -T0 -19 -f "$OUT_DIR/uos20e-arm64.oci.tar" \
-        -o "$OUT_DIR/uos20e-arm64.oci.tar.zst"
-    zstd -T0 -19 -f "$OUT_DIR/uos20e-arm64-image.tar" \
-        -o "$OUT_DIR/uos20e-arm64-image.tar.zst"
+    zstd -T0 -19 -f "$OUT_DIR/$OUTPUT_PREFIX.oci.tar" \
+        -o "$OUT_DIR/$OUTPUT_PREFIX.oci.tar.zst"
+    zstd -T0 -19 -f "$OUT_DIR/${OUTPUT_PREFIX}-image.tar" \
+        -o "$OUT_DIR/${OUTPUT_PREFIX}-image.tar.zst"
 fi
-printf 'UOS20E arm64 image exported: %s\n' "$IMAGE"
+printf 'arm64 image exported: %s\n' "$IMAGE"

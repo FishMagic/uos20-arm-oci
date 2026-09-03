@@ -1,0 +1,5 @@
+# Central Debian archive baseline selected from the exported UOS20E package
+# inventory: glibc 2.28 / GCC 8 / WebKitGTK 4.0.
+deb [arch=arm64] http://archive.debian.org/debian buster main contrib non-free
+deb [arch=arm64] http://archive.debian.org/debian buster-updates main contrib non-free
+deb [arch=arm64] http://archive.debian.org/debian-security buster/updates main

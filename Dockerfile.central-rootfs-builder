@@ -1,0 +1,6 @@
+# syntax=docker/dockerfile:1.7
+# Bootstrap only; the output rootfs is populated from debian.sources.
+FROM arm64v8/debian:buster@sha256:fba020fe61e2b15959ef887ea67c7fc61f77943d074889debe8d92e29402191f
+COPY build-central-rootfs.sh /usr/local/bin/build-central-rootfs.sh
+RUN chmod 0755 /usr/local/bin/build-central-rootfs.sh
+ENTRYPOINT ["/usr/local/bin/build-central-rootfs.sh"]
