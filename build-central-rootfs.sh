@@ -52,6 +52,15 @@ APT_OPTIONS=(
 )
 apt-get update "${APT_OPTIONS[@]}"
 
+# The minimal bootstrap image may mark ca-certificates installed without the
+# generated bundle. Reinstall it before copying the base filesystem so git and
+# CMake ExternalProject can verify HTTPS sources.
+apt-get install -y --reinstall --no-install-recommends \
+    "${APT_OPTIONS[@]}" ca-certificates
+update-ca-certificates
+mkdir -p "$ROOTFS/etc/ssl/certs"
+cp -a /etc/ssl/certs/. "$ROOTFS/etc/ssl/certs/"
+
 mapfile -t PACKAGES < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$PACKAGES_FILE")
 [ "${#PACKAGES[@]}" -gt 0 ] || { echo "central package list is empty" >&2; exit 2; }
 printf 'Resolving %s Debian buster packages\n' "${#PACKAGES[@]}"
@@ -98,6 +107,7 @@ for required in \
     "$ROOTFS/usr/bin/g++" \
     "$ROOTFS/usr/bin/git" \
     "$ROOTFS/bin/tar" \
+    "$ROOTFS/etc/ssl/certs/ca-certificates.crt" \
     "$ROOTFS/usr/include/webkitgtk-4.0/webkit2/webkit2.h" \
     "$ROOTFS/usr/lib/aarch64-linux-gnu/pkgconfig/webkit2gtk-4.0.pc"; do
     [ -e "$required" ] || { echo "central rootfs missing required file: $required" >&2; exit 1; }
