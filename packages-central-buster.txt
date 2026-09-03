@@ -26,6 +26,7 @@ autotools-dev
 dpkg-dev
 build-essential
 cmake
+extra-cmake-modules
 ninja-build
 pkg-config
 autoconf
