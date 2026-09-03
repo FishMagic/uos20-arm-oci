@@ -88,6 +88,12 @@ jobs:
             --env UOS_ENABLE_WAYLAND_PPA \
             local/uos20e-rootfs-builder:ci
 
+      - name: Configure OCI exporter builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx create --name uos20e-arm64-oci --driver docker-container --use
+          docker buildx inspect --bootstrap
       - name: Build runnable image and OCI archive
         shell: bash
         run: |

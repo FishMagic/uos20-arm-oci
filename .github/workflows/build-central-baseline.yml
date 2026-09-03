@@ -66,6 +66,12 @@ jobs:
             --volume "$RUNNER_TEMP/debian-buster-rootfs:/out" \
             local/debian-buster-arm64-rootfs-builder:ci
 
+      - name: Configure OCI exporter builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx create --name central-arm64-oci --driver docker-container --use
+          docker buildx inspect --bootstrap
       - name: Build runnable central image and OCI archive
         shell: bash
         run: |
