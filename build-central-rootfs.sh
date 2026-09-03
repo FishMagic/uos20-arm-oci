@@ -64,7 +64,7 @@ cp -a /etc/ssl/certs/. "$ROOTFS/etc/ssl/certs/"
 mapfile -t PACKAGES < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$PACKAGES_FILE")
 [ "${#PACKAGES[@]}" -gt 0 ] || { echo "central package list is empty" >&2; exit 2; }
 printf 'Resolving %s Debian buster packages\n' "${#PACKAGES[@]}"
-apt-get install -y --download-only --no-install-recommends \
+apt-get install -y --download-only --reinstall --no-install-recommends \
     "${APT_OPTIONS[@]}" "${PACKAGES[@]}"
 
 shopt -s nullglob
