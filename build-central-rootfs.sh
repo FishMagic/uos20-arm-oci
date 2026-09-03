@@ -86,6 +86,10 @@ dpkg --root="$ROOTFS" --unpack "${DEBS[@]}" > "$OUT_DIR/dpkg-unpack.log" 2>&1 ||
     echo "warning: package status setup was partial; see dpkg-unpack.log" >&2
 }
 
+# Package extraction intentionally skips maintainer scripts; regenerate the
+# target loader cache so binaries such as CMake can resolve libssl1.1.
+ldconfig -r "$ROOTFS"
+
 mkdir -p "$ROOTFS/etc/apt"
 cp /etc/apt/sources.list "$ROOTFS/etc/apt/sources.list"
 install -D -m 0755 /src/build-bambustudio-uos20e.sh \
@@ -108,6 +112,7 @@ for required in \
     "$ROOTFS/usr/bin/git" \
     "$ROOTFS/bin/tar" \
     "$ROOTFS/etc/ssl/certs/ca-certificates.crt" \
+    "$ROOTFS/usr/lib/aarch64-linux-gnu/libssl.so.1.1" \
     "$ROOTFS/usr/include/webkitgtk-4.0/webkit2/webkit2.h" \
     "$ROOTFS/usr/lib/aarch64-linux-gnu/pkgconfig/webkit2gtk-4.0.pc"; do
     [ -e "$required" ] || { echo "central rootfs missing required file: $required" >&2; exit 1; }
