@@ -1,0 +1,7 @@
+# syntax=docker/dockerfile:1.7
+# This image supplies only the native arm64 bootstrap tools.  The resulting
+# rootfs contains packages downloaded exclusively from ../apt_sources.txt.
+FROM arm64v8/debian:buster
+COPY build-rootfs.sh /usr/local/bin/build-rootfs.sh
+RUN chmod 0755 /usr/local/bin/build-rootfs.sh
+ENTRYPOINT ["/usr/local/bin/build-rootfs.sh"]

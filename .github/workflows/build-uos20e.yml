@@ -1,0 +1,140 @@
+name: Build UOS20E arm64 OCI environment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apt_sources.txt'
+      - 'packages.txt'
+      - 'build-rootfs.sh'
+      - 'build-bambustudio-uos20e.sh'
+      - 'build-oci.sh'
+      - 'Dockerfile'
+      - 'Dockerfile.rootfs-builder'
+      - '.github/workflows/build-uos20e.yml'
+  workflow_dispatch:
+    inputs:
+      publish_image:
+        description: 'Push the runnable image to GHCR'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: uos20e-arm64-oci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: UOS20E arm64 rootfs and OCI
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+    env:
+      UOS_APT_AUTH_CONF: ${{ secrets.UOS_APT_AUTH_CONF }}
+      UOS_APT_CA_CERT: ${{ secrets.UOS_APT_CA_CERT }}
+      # The supplied UOS endpoint can expose a private CA. Prefer setting the
+      # UOS_INSECURE_TLS repository variable to 0 plus UOS_APT_CA_CERT.
+      UOS_INSECURE_TLS: ${{ vars.UOS_INSECURE_TLS || '1' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify native ARM runner and disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          docker info
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/share/powershell /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Prepare apt credentials without committing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "${UOS_APT_AUTH_CONF}" > "$RUNNER_TEMP/uos-apt-auth"
+          : > "$RUNNER_TEMP/uos-apt-ca"
+          if [[ -n "${UOS_APT_CA_CERT}" ]]; then
+            printf '%s' "${UOS_APT_CA_CERT}" > "$RUNNER_TEMP/uos-apt-ca"
+          fi
+
+      - name: Build arm64 rootfs helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/arm64 --load \
+            --tag local/uos20e-rootfs-builder:ci \
+            --file Dockerfile.rootfs-builder .
+
+      - name: Resolve UOS packages and create rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/uos-rootfs"
+          docker run --rm --platform linux/arm64 \
+            --volume "$GITHUB_WORKSPACE:/src:ro" \
+            --volume "$RUNNER_TEMP/uos-rootfs:/out" \
+            --volume "$RUNNER_TEMP/uos-apt-auth:/run/secrets/uos-apt-auth:ro" \
+            --volume "$RUNNER_TEMP/uos-apt-ca:/run/secrets/uos-apt-ca:ro" \
+            --env UOS_INSECURE_TLS \
+            local/uos20e-rootfs-builder:ci
+
+      - name: Build runnable image and OCI archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build-oci.sh \
+            "$RUNNER_TEMP/uos-rootfs/rootfs.tar" \
+            "local/uos20e-arm64:${GITHUB_SHA::12}" \
+            "$RUNNER_TEMP/uos-rootfs"
+
+      - name: Publish runnable image to GHCR
+        if: ${{ github.event_name == 'push' || inputs.publish_image == true }}
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          IMAGE="ghcr.io/${OWNER}/uos20e-arm64:${GITHUB_SHA::12}"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+          docker tag "local/uos20e-arm64:${GITHUB_SHA::12}" "$IMAGE"
+          docker push "$IMAGE"
+          docker tag "$IMAGE" "ghcr.io/${OWNER}/uos20e-arm64:latest"
+          docker push "ghcr.io/${OWNER}/uos20e-arm64:latest"
+
+      - name: Compress rootfs for transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v zstd >/dev/null 2>&1; then
+            zstd -T0 -19 -f "$RUNNER_TEMP/uos-rootfs/rootfs.tar" \
+              -o "$RUNNER_TEMP/uos-rootfs/uos20e-arm64-rootfs.tar.zst"
+          else
+            gzip -9 -c "$RUNNER_TEMP/uos-rootfs/rootfs.tar" \
+              > "$RUNNER_TEMP/uos-rootfs/uos20e-arm64-rootfs.tar.gz"
+          fi
+
+      - name: Upload rootfs, OCI image, and manifest
+        uses: actions/upload-artifact@v6
+        with:
+          name: uos20e-arm64-oci-${{ github.sha }}
+          if-no-files-found: error
+          compression-level: 0
+          path: |
+            ${{ runner.temp }}/uos-rootfs/rootfs.tar
+            ${{ runner.temp }}/uos-rootfs/rootfs.tar.sha256
+            ${{ runner.temp }}/uos-rootfs/uos20e-arm64-rootfs.tar.*
+            ${{ runner.temp }}/uos-rootfs/uos20e-arm64-manifest.txt
+            ${{ runner.temp }}/uos-rootfs/uos20e-arm64.oci.tar
+            ${{ runner.temp }}/uos-rootfs/uos20e-arm64.oci.tar.zst
+            ${{ runner.temp }}/uos-rootfs/uos20e-arm64-image.tar
+            ${{ runner.temp }}/uos-rootfs/uos20e-arm64-image.tar.zst

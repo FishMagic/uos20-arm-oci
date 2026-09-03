@@ -1,0 +1,10 @@
+# Generated rootfs, OCI archives, image exports, and local credentials
+/out/
+rootfs/
+*.tar
+*.tar.gz
+*.tar.zst
+*.oci.tar
+*.oci.tar.zst
+*.sha256
+*.auth
