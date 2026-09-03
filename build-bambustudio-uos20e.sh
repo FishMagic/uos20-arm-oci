@@ -53,6 +53,12 @@ if command -v zstd >/dev/null 2>&1; then
     zstd -T0 -19 -f "$OUT/BambuStudio_${VERSION}_uos20e_${ARCH}.tar" \
         -o "$OUT/BambuStudio_${VERSION}_uos20e_${ARCH}.tar.zst"
 fi
-sha256sum "$OUT"/BambuStudio_*_uos20e_${ARCH}.tar* \
-    > "$OUT/BambuStudio_${VERSION}_uos20e_${ARCH}.sha256"
+CHECKSUM_FILES=("BambuStudio_${VERSION}_uos20e_${ARCH}.tar.gz")
+if [[ -f "$OUT/BambuStudio_${VERSION}_uos20e_${ARCH}.tar.zst" ]]; then
+    CHECKSUM_FILES+=("BambuStudio_${VERSION}_uos20e_${ARCH}.tar.zst")
+fi
+(
+    cd "$OUT"
+    sha256sum "${CHECKSUM_FILES[@]}"
+) > "$OUT/BambuStudio_${VERSION}_uos20e_${ARCH}.sha256"
 printf 'official UOS20E arm64 build complete: %s\n' "$VERSION"
