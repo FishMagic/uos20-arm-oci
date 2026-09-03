@@ -24,11 +24,19 @@ mkdir -p "$OUT_DIR" "$ROOTFS"
 rm -f /var/cache/apt/archives/*.deb
 
 # Delete every repository inherited from the bootstrap image.  Only active
-# `deb` entries from the supplied apt_sources.txt are retained.
+# `deb` entries from the supplied apt_sources.txt are retained.  The supplied
+# PPA currently publishes `main`; keep its URL/suite from the source file but
+# avoid inventing 404 component indexes for contrib/non-free.
 rm -f /etc/apt/sources.list
 rm -rf /etc/apt/sources.list.d
 mkdir -p /etc/apt/sources.list.d
-awk '$1 == "deb" { print }' "$SOURCE_FILE" > /etc/apt/sources.list
+awk '$1 == "deb" {
+    if ($2 ~ /professional-ppa\.chinauos\.com/) {
+        print "deb [arch=arm64 trusted=yes] " $2 " " $3 " main"
+    } else {
+        print "deb [arch=arm64 trusted=yes] " $2 " " $3 " " $4 " " $5 " " $6
+    }
+}' "$SOURCE_FILE" > /etc/apt/sources.list
 [ -s /etc/apt/sources.list ] || { echo "apt_sources.txt has no active deb entries" >&2; exit 2; }
 
 if [ -s "$AUTH_FILE" ]; then
@@ -56,7 +64,6 @@ fi
 # The source file is the only source of URLs.  trusted=yes avoids requiring a
 # UOS signing key inside the bootstrap image; the repository still uses the
 # configured HTTPS endpoint and (when needed) its target auth file.
-sed -i 's/^deb /deb [arch=arm64 trusted=yes] /' /etc/apt/sources.list
 export DEBIAN_FRONTEND=noninteractive
 apt-get update \
     -o Acquire::AllowInsecureRepositories=true \
