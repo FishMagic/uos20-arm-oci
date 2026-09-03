@@ -83,6 +83,7 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/src:ro" \
             --volume "$RUNNER_TEMP/uos-rootfs:/out" \
             --volume "$RUNNER_TEMP/uos-apt-auth:/run/secrets/uos-apt-auth:ro" \
+            --volume "$RUNNER_TEMP/uos-apt-ca:/run/secrets/uos-apt-ca:ro" \
             --env UOS_INSECURE_TLS \
             --env UOS_ENABLE_WAYLAND_PPA \
             local/uos20e-rootfs-builder:ci
