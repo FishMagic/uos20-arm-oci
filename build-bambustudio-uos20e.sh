@@ -66,7 +66,7 @@ mkdir -p "$DEB_ROOT/DEBIAN" "$DEB_ROOT/opt/BambuStudio" "$DEB_ROOT/usr/bin"
 cp -a build/package/. "$DEB_ROOT/opt/BambuStudio/"
 ln -s /opt/BambuStudio/bambu-studio "$DEB_ROOT/usr/bin/bambu-studio"
 install -D -m 0644 \
-    build/package/resources/applications/BambuStudio.desktop \
+    src/platform/unix/BambuStudio.desktop \
     "$DEB_ROOT/usr/share/applications/BambuStudio.desktop"
 for PNG_SIZE in 32 128 192; do
     install -D -m 0644 \
