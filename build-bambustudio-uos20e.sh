@@ -48,10 +48,13 @@ ARCH=$(dpkg --print-architecture)
 [ -n "$VERSION" ] || { echo "could not determine BambuStudio version" >&2; exit 1; }
 BASE_NAME="BambuStudio_${VERSION}_uos20e_${ARCH}"
 
-cp build/BambuStudio.tar "$OUT/${BASE_NAME}.tar"
-tar -C build/package --numeric-owner --owner=0 --group=0 --sort=name \
-    --mtime='UTC 1970-01-01' -czf \
-    "$OUT/${BASE_NAME}.tar.gz" .
+ARCHIVE_ROOT="$WORK/archive/$BASE_NAME"
+rm -rf "$WORK/archive"
+mkdir -p "$ARCHIVE_ROOT"
+cp -a build/package/. "$ARCHIVE_ROOT/"
+tar -C "$WORK/archive" --numeric-owner --owner=0 --group=0 --sort=name \
+    --mtime='UTC 1970-01-01' -cf "$OUT/${BASE_NAME}.tar" "$BASE_NAME"
+gzip -9 -c "$OUT/${BASE_NAME}.tar" > "$OUT/${BASE_NAME}.tar.gz"
 if command -v zstd >/dev/null 2>&1; then
     zstd -T0 -19 -f "$OUT/${BASE_NAME}.tar" \
         -o "$OUT/${BASE_NAME}.tar.zst"
